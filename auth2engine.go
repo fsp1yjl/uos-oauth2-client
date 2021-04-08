@@ -25,16 +25,16 @@ var (
 	config *AuthEngineConfig
 	// 这里使用的是通知中心的 clientid, clientsecret信息
 	// 本地测试需要使用通知中心的测试账户、密码登陆
-	ClientId = "eaffa6e3781c05cc3abcfcd7f64ce246db5c9ba1"
-	ClientSecret = "e5f50f7ce233af132b3c0998ec9030162348e2ef"
-	oauth_server = "http://login-platform-pre.uniontech.com"
-
-	app_host = "localhost"
-	app_port = "9094"
-	oauth_login_staic_path = "/login"
-	oauth_callback_to_app_url = "http://" + app_host + ":" + app_port + "/auth/callback"  //oauth 服务器返回auth code信息重定向的app 地址
-
-	SessionStoreType = "redis"
+	//ClientId = "eaffa6e3781c05cc3abcfcd7f64ce246db5c9ba1"
+	//ClientSecret = "e5f50f7ce233af132b3c0998ec9030162348e2ef"
+	//oauth_server = "http://login-platform-pre.uniontech.com"
+	//
+	//app_host = "localhost"
+	//app_port = "9094"
+	//oauth_login_staic_path = "/login"
+	//oauth_callback_to_app_url = "http://" + app_host + ":" + app_port + "/auth/callback"  //oauth 服务器返回auth code信息重定向的app 地址
+	//
+	SessionStoreRedis = "redis"
 
 )
 
@@ -46,47 +46,31 @@ type  OAuth2Config struct{
 	TokenPath string
 	ClientId string
 	ClientSecret string
+	Scope []string
 	Callback string
+}
+type RedisConf struct {
+	Address string
+	Password string
+	Db string
 }
 
 type AuthEngineConfig struct {
 	OAuth2 OAuth2Config
-	RedisConf struct {
-		Address string
-		Password string
-		Db string
-	}
+	Redis  RedisConf
+	SessionStoreType string
 }
 
-
-func init() {
-	LoadConfig()
-}
-
-func LoadConfig()  {
-
-	config =  &AuthEngineConfig{
-		OAuth2 : OAuth2Config {
-			Server: oauth_server,
-			LoginPath: oauth_login_staic_path,  //oauth服务器渲染登录界面的url路径
-			ClientId: ClientId,
-			ClientSecret: ClientSecret,
-			Callback: oauth_callback_to_app_url, //oauth 服务器返回auth code信息重定向的app 地址
-		},
-
-
-	}
-}
 
 // 初始化sessionStore, 可以默认使用 memstore, 可以自行修改为redis
 func initSessionStore() sessions.Store  {
 
-	if SessionStoreType == "redis" {
+	if SessionStoreRedis == config.SessionStoreType {
 		store, err := redis.NewStoreWithDB(10,
 			"tcp",
-			"localhost:6379",
-			"131121",
-			"1",
+			config.Redis.Address,
+			config.Redis.Password,
+			config.Redis.Db,
 			[]byte("secret"))
 		if err != nil {
 			panic("init redis session store error:")
@@ -102,30 +86,24 @@ func initSessionStore() sessions.Store  {
 // 初始化服务器
 func initServerControler() *gin.Engine{
 	eng := gin.Default()
-	eng.GET("/", DefaultPage)
+	eng.GET("/", defaultPage)
 
 	store := initSessionStore()
 	eng.Use(sessions.Sessions("platform", store))
 
 	auth := eng.Group("/auth")
-	auth.GET("/is_login", LoggedCheckHandle )
-	auth.GET("/callback", CallbackHandle)
+	auth.GET("/is_login", loggedCheckHandle )
+	auth.GET("/callback", callbackHandle)
 
 
 	return eng
 }
 
-func InitEngine() *gin.Engine{
-	eng := initServerControler()
-	return eng
-	//s.Run(config.Host + ":" + config.Port) // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
-}
-
-func DefaultPage(c *gin.Context) {
+func defaultPage(c *gin.Context) {
 	c.Redirect(302, "/auth/is_login")
 }
 
-func LoginCheck(sess sessions.Session)  bool{
+func loginCheck(sess sessions.Session)  bool{
 
 	gob.Register(oauth2.Token{})
 	token := sess.Get("token")
@@ -144,17 +122,16 @@ func LoginCheck(sess sessions.Session)  bool{
 }
 
 //判断是否登录
-func LoggedCheckHandle(c *gin.Context)  {
+func loggedCheckHandle(c *gin.Context)  {
 	session := sessions.Default(c)
 
 	//判断session中是否存在token ,如果存在则直接返回token信息，否则直接跳转到三方认证页面
-	logged := LoginCheck(session)
+	logged := loginCheck(session)
 	state := "hello"
 
 	var getQueryString  func() string
 	getQueryString = func () string  {
 		str := fmt.Sprintf("?response_type=code&client_id=%v&redirect_uri=%v&state=%v", config.OAuth2.ClientId, config.OAuth2.Callback, state)
-		fmt.Println("str4----------:", str)
 		return str
 	}
 
@@ -172,7 +149,7 @@ func LoggedCheckHandle(c *gin.Context)  {
 	return
 }
 
-func CallbackHandle(c *gin.Context) {
+func callbackHandle(c *gin.Context) {
 
 	fmt.Println("into callback")
 	r := c.Request
@@ -196,13 +173,14 @@ func CallbackHandle(c *gin.Context) {
 	}
 
 	authConf := oauth2.Config{
-		ClientID: "eaffa6e3781c05cc3abcfcd7f64ce246db5c9ba1",
-		ClientSecret: "e5f50f7ce233af132b3c0998ec9030162348e2ef",
-		Scopes:       []string{"all"},
-		RedirectURL:  "http://localhost:9094/auth/callback",
+		ClientID: config.OAuth2.ClientId,
+		ClientSecret: config.OAuth2.ClientSecret,
+
+		Scopes:       config.OAuth2.Scope,
+		RedirectURL:  config.OAuth2.Callback,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  config.OAuth2.Server + "/authorize",
-			TokenURL: config.OAuth2.Server + "/token",
+			AuthURL:  config.OAuth2.Server + config.OAuth2.AuthPath,
+			TokenURL: config.OAuth2.Server + config.OAuth2.TokenPath,
 		},
 	}
 
@@ -222,4 +200,12 @@ func CallbackHandle(c *gin.Context) {
 	c.Redirect(302,"/auth/is_login")
 
 
+}
+
+
+func InitEngine(conf *AuthEngineConfig) *gin.Engine{
+	config = conf
+	eng := initServerControler()
+	return eng
+	//s.Run(config.Host + ":" + config.Port) // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 }
