@@ -9,6 +9,7 @@ import (
 var (
 	// 这里使用的是通知中心的 clientid, clientsecret信息
 	// 本地测试需要使用通知中心的测试账户、密码登陆
+	
 	ClientId = "eaffa6e3781c05cc3abcfcd7f64ce246db5c9ba1"
 	ClientSecret = "e5f50f7ce233af132b3c0998ec9030162348e2ef"
 	Scope = []string{"all"}
