@@ -69,7 +69,7 @@ func InitEngine(conf *AuthEngineConfig) *gin.Engine{
 // initServerControler 初始化服务器
 func initServerControler() *gin.Engine{
 
-	// 需要先初始化auth2engine配置信息
+	// 需要先初始化auth2engine配置信息  
 	if !authConfigCheck() {
 		panic("auth2engine config check failed")
 	}
