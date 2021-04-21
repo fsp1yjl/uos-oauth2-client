@@ -1,6 +1,7 @@
 
 
 # uos-oauth2-client
+111
 功能：
 uos-oauth2-client 包为用户返回一个gin engine。 
 在实例化的engine中实现了与oauth2 server交互的相关功能，并提供了一个auth 中间件，用于对需要做认证的请求uri 做认证管理
